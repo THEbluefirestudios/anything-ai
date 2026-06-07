@@ -97,7 +97,11 @@ welcome_messages = [
 
 summarized_context = ""
 
-
+def type_print(text, delay):
+    for x in range(len(text)):
+        print(text[x], end="", flush=True)
+        sleep(delay)
+    print('\n')
 
 def ui_header():
     global daytime, header, welcome_messages, username, width
@@ -128,6 +132,26 @@ def open_file(path):
     else:
         print("Unsupported operating system")
 
+def run_terminal_command(command):
+    global width
+    type_print(col.YELLOW+'AI has requested to run the given command: ', 0.01)
+    print(col.LIGHTBLUE_EX+'\n')
+    print(width*'-'+'\n')
+    print('   '+command+ '\n')
+    print(width*'-'+'\n')
+    type_print(col.YELLOW+'\nDo you accept or reject the execution of this command? [y/n]', 0.01)
+    choice = ''
+    while choice.lower() not in ['y', 'n']:
+        choice = str(input())
+        if choice.lower() not in ['y','n']:
+            print(col.YELLOW+'Invalid input, please enter y or n')
+    if choice.lower() == 'y':
+        subprocess.run(command, shell=True)
+        context.append('User accepted AI\'s request to run command')
+        print(col.LIGHTGREEN_EX+f'\nExecuted command:{command}\n')
+    else:
+        context.append('User rejected AI\'s request to run command')
+
 def get_image_base64_uri(image_path):
     with Image.open(image_path) as img:
         buffered = BytesIO()
@@ -155,8 +179,7 @@ def pick_image_file():
         return None
     
     path = str(path).replace("\\", "\\\\")
-    
-    print(col.LIGHTGREEN_EX+f"\n\n▣ Image attached: {Path(path).name}\n"+ col.WHITE + '')
+    print(f"\x1b[s\n\n\x1b[K{col.LIGHTGREEN_EX}▣ Image attached: {Path(path).name}{col.WHITE}\x1b[u", end="", flush=True)#using some ANSI hoogaloo here to fix text diplay issues
     return path
 
 def fetch_wikimedia_image(query):
@@ -195,11 +218,7 @@ def get_output_dir():
     return output_dir
 
 
-def type_print(text, delay):
-    for x in range(len(text)):
-        print(text[x], end="", flush=True)
-        sleep(delay)
-    print('\n')
+
 
 
 def maybe_summarize_context():
@@ -447,7 +466,7 @@ def sort_prompt(prompt):
 
     system_prompt = (
         "You are a central high-speed Intent Routing Node. Categorize the user prompt into exactly "
-        "one of these strings: 'code_create', 'code_edit', 'reasoning', 'math', 'conversation', 'agentic_task', 'file_generate' or 'roleplay'. "
+        "one of these strings: 'code_create', 'code_edit', 'reasoning', 'math', 'conversation', 'agentic_task', 'file_generate' 'terminal_command' or 'roleplay'. "
         "the agentic_task intent only refers to opening an app or a website on the user's pc"
         f"Only output 'code_edit' if there is code present in earlier chat context: \n{get_context_string()}\n"
         "Output ONLY the exact category word chosen from the list above. Do not include punctuation, backticks, or any conversational text. "
@@ -1160,7 +1179,7 @@ def image_pipeline(image_path, user_question="Describe this image deeply."):
     ]
 
     for idx, active_client in enumerate(clients):
-        try:
+        try: 
             response = active_client.chat.completions.create(
                 model="Qwen/Qwen3.5-397B-A17B",
                 messages=messages_payload,
@@ -1178,7 +1197,69 @@ def image_pipeline(image_path, user_question="Describe this image deeply."):
             continue
     return "Native Hub Error: All available client tokens exhausted. Make sure your HF tokens are active."
 
+def terminal_command_pipeline(prompt):
+    global context, summarized_context
+    current_os = platform.system()
+    if context:
+        bg_thread = thread.Thread(target=maybe_summarize_context, daemon=True)
+        bg_thread.start()
 
+    system_prompt = (
+        f"You are a text-to-CLI translation engine. You must convert human intent into a functional terminal command for the {current_os} operating system.\n"
+        "ALLOWED OUTPUT FORMAT:\n"
+        "mkdir test_folder\n\n"
+        "FORBIDDEN OUTPUT FORMATS:\n"
+        "- ```bash\\nmkdir test_folder\\n```\n"
+        "- Here is the command: mkdir test_folder\n"
+        "- mkdir test_folder (Note: this creates a directory)\n\n"
+        "Strictly evaluate inputs and output the raw plain-text command only. No introductions. No conclusions."
+    )
+    try:
+        response = client1.chat.completions.create(
+            model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": str(prompt)}
+            ],
+            max_tokens=2000,
+            temperature=0.1
+        )
+        ai_reply = str(response.choices[0].message.content).strip().replace("`", "")
+        context.append('User said: ' + str(prompt))
+        context.append('Ai asked to run command: ' + ai_reply)
+        return ai_reply
+    except:
+        try:
+            response = client2.chat.completions.create(
+                model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": str(prompt)}
+                ],
+                max_tokens=2000,
+                temperature=0.1
+            )
+            ai_reply = str(response.choices[0].message.content).strip().replace("`", "")
+            context.append('User said: ' + str(prompt))
+            context.append('Ai asked to run command: ' + ai_reply)
+            return ai_reply
+        except:
+            try:
+                response = client3.chat.completions.create(
+                    model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": str(prompt)}
+                    ],
+                    max_tokens=2000,
+                    temperature=0.1
+                )
+                ai_reply = str(response.choices[0].message.content).strip().replace("`", "")
+                context.append('User said: ' + str(prompt))
+                context.append('Ai asked to run command: ' + ai_reply)
+                return ai_reply
+            except Exception as e:
+                return f"Native Hub Error: {e}\nMake sure your HF token is valid and active." 
 
 
 def on_press(key):
@@ -1192,11 +1273,11 @@ if __name__ == "__main__":
     print('\n\n\n')
     ui_header()
     print('\n\n\n')
-
+    print(col.LIGHTBLACK_EX+ (' '*(width-26))+'( ▣ [Insert] | → [Enter] )\n\n')
     while True:
         listener = kb.Listener(on_press=on_press)
         listener.start()
-        print(col.LIGHTBLACK_EX+ (' '*(width-26))+'( ▣ [Insert] | → [Enter] )\n\n')
+        
         task = input(col.LIGHTBLACK_EX+"Ask Anything..."+col.WHITE+'\r')
         listener.stop()
         
@@ -1254,6 +1335,8 @@ if __name__ == "__main__":
         elif intent == 'file_generate':
             ai_response = file_generate_pipeline(task)
             write_file_from_json(ai_response)
+        elif intent == 'terminal_command':
+            run_terminal_command(terminal_command_pipeline(task))
         else:
             ai_response = conversation_pipeline(task)
             type_print(col.LIGHTBLUE_EX+str(ai_response), 0.01)
