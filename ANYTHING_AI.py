@@ -97,6 +97,38 @@ welcome_messages = [
 
 summarized_context = ""
 
+def parse_text_file(path):
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        return f.read()
+
+def parse_docx_file(path):
+    doc = Document(path)
+    return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+
+def parse_csv_file(path):
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        return f.read()
+
+def parse_xlsx_file(path):
+    wb = openpyxl.load_workbook(path)
+    ws = wb.active
+    rows = []
+    for row in ws.iter_rows(values_only=True):  # type: ignore
+        rows.append("\t".join(str(c) if c is not None else "" for c in row))
+    return "\n".join(rows)
+
+def parse_pptx_file(path):
+    prs = Presentation(path)
+    slides = []
+    for i, slide in enumerate(prs.slides):
+        text = " ".join(shape.text for shape in slide.shapes if hasattr(shape, "text"))  # type: ignore
+        slides.append(f"Slide {i+1}: {text}")
+    return "\n".join(slides)
+
+def parse_code_file(path):
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        return f.read()
+    
 def type_print(text, delay):
     for x in range(len(text)):
         print(text[x], end="", flush=True)
@@ -160,26 +192,46 @@ def get_image_base64_uri(image_path):
         img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
         return f"data:image/{img_format.lower()};base64,{img_base64}"
 
-def pick_image_file():
+def pick_file():
     root = tk.Tk()
     root.withdraw()
     root.attributes('-topmost', True)
     
     path = filedialog.askopenfilename(
-        title="Select an Image",
+        title="Select a File",
         filetypes=[
             ("Image files", "*.png *.jpg *.jpeg *.gif *.webp"),
+            ("Text and Documents", "*.txt *.docx *.csv *.pptx *xlsx"),
+            ("Code files", "*.py *.java *.js *.html *.kt *.c *.cpp *.cs *.css *.pyw *.ipynb"),
             ("All files", "*.*")
         ]
     )
     
     root.destroy()
-    
+
     if not path:
         return None
-    
     path = str(path).replace("\\", "\\\\")
-    print(f"\x1b[s\n\n\x1b[K{col.LIGHTGREEN_EX}▣ Image attached: {Path(path).name}{col.WHITE}\x1b[u", end="", flush=True)#using some ANSI hoogaloo here to fix text diplay issues
+    ext = path.split('.')[-1].lower()
+
+    image_exts = ("png", "jpg", "jpeg", "gif", "webp")
+    code_exts  = ("py", "java", "js", "html", "kt", "c", "cpp", "cs", "css", "pyw", "ipynb")
+    text_exts  = ("txt", "docx", "csv", "pptx", "xlsx")
+    
+    if ext in image_exts:
+        icon = "▣"
+        filetype = 'Image'
+    elif ext in code_exts:
+        icon = "<\\>"
+        filetype = 'Code File'
+    elif ext in text_exts:
+        icon = "₠"
+        filetype = 'Document'
+    else:
+        icon = "▮"
+        filetype = 'File'
+    
+    print(f"\x1b[s\n\n\x1b[K{col.LIGHTGREEN_EX}{icon} {filetype} attached: {Path(path).name}{col.WHITE}\x1b[u", end="", flush=True)
     return path
 
 def fetch_wikimedia_image(query):
@@ -468,7 +520,8 @@ def sort_prompt(prompt):
         "You are a central high-speed Intent Routing Node. Categorize the user prompt into exactly "
         "one of these strings: 'code_create', 'code_edit', 'reasoning', 'math', 'conversation', 'agentic_task', 'file_generate' 'terminal_command' or 'roleplay'. "
         "the agentic_task intent only refers to opening an app or a website on the user's pc"
-        f"Only output 'code_edit' if there is code present in earlier chat context: \n{get_context_string()}\n"
+        "Only output 'code_create' if the prompt explicitly states to create code, don't output 'code_create' just because the user attached a file."
+        f"Only output 'code_edit' if user has attached a code file OR is code present in earlier chat context: \n{get_context_string()}\n"
         "Output ONLY the exact category word chosen from the list above. Do not include punctuation, backticks, or any conversational text. "
         f"Use the given context to better understand the meaning of the prompt and infer accordingly \n{get_context_string()}\n"
         "Start printing the word immediately."
@@ -1263,60 +1316,101 @@ def terminal_command_pipeline(prompt):
 
 
 def on_press(key):
-    global imagefile
+    global attachfile
     if key == kb.Key.insert:
-        imagefile = pick_image_file()
+        attachfile = pick_file()
 
 
 if __name__ == "__main__":
-    imagefile = None
+    attachfile = None
     print('\n\n\n')
     ui_header()
     print('\n\n\n')
-    print(col.LIGHTBLACK_EX+ (' '*(width-26))+'( ▣ [Insert] | → [Enter] )\n\n')
+    print(col.LIGHTBLACK_EX+ (' '*(width-26))+'( + [Insert] | → [Enter] )\n\n')
     while True:
         listener = kb.Listener(on_press=on_press)
         listener.start()
         
         task = input(col.LIGHTBLACK_EX+"Ask Anything..."+col.WHITE+'\r')
         listener.stop()
-        
-        if 'photo' in task.lower() or 'image' in task.lower() or 'picture' in task.lower() or 'png' in task.lower() or 'jpg' in task.lower() or 'jpeg' in task.lower():
-            if imagefile == None:
-                imagefile = pick_image_file()
 
-        if imagefile != "" and imagefile != None:
-            texted_image = image_pipeline(imagefile)
-            imagefile = None
-            task = task + ', User also attached image file showing: '+ texted_image
+        if attachfile != "" and attachfile != None:
+            fileext = attachfile.split('.')[-1].lower()
             print('\n\n\n')
+
+            if fileext in ("png", "jpg", "jpeg", "gif", "webp"):
+                texted_image = image_pipeline(attachfile)
+                attachfile = None
+                task = task + ', User also attached image file showing: '+ texted_image
+
+            elif fileext == 'txt':
+                parsedfile = parse_text_file(attachfile)
+                attachfile = None
+                task = task + ", User also attached text file with contents:\n"+parsedfile
+
+            elif fileext == 'csv':
+                parsedfile = parse_csv_file(attachfile)
+                attachfile = None
+                task = task + ", User also attached csv file with contents:\n"+parsedfile
+
+            elif fileext == 'docx':
+                parsedfile = parse_docx_file(attachfile)
+                attachfile = None
+                task = task + ", User also attached Microsoft Word file with contents:\n"+parsedfile
+
+            elif fileext == 'xlsx':
+                parsedfile = parse_xlsx_file(attachfile)
+                attachfile = None
+                task = task + ", User also attached Microsoft Excel file with contents:\n"+parsedfile
+
+            elif fileext == 'pptx':
+                parsedfile = parse_pptx_file(attachfile)
+                attachfile = None
+                task = task + ", User also attached Microsoft PowerPoint file with contents:\n"+parsedfile
+
+            elif fileext in ("py", "java", "js", "html", "kt", "c", "cpp", "cs", "css", "pyw", "ipynb"):
+                parsedfile = parse_text_file(attachfile)
+                attachfile = None
+                task = task + f", User also attached {fileext} code file with contents:\n"+parsedfile
+            else:
+                parsedfile = parse_text_file(attachfile)
+                attachfile = None
+                task = task + ", User also attached file with contents:\n"+parsedfile
 
         intent = str(sort_prompt(task)).lower()
 
         if intent == 'code_create':
+
             ai_response = code_create_pipeline(task)
             type_print(col.LIGHTBLUE_EX+str(ai_response), 0.01)
             type_print(col.LIGHTYELLOW_EX+'\nWould you like me to save this file to your computer? [y/n]', 0.01)
             chocice = str(input())
+
             while chocice.lower() not in ('y', 'n'):
                 type_print(col.LIGHTYELLOW_EX+'Please enter y or n: ', 0.01)
                 chocice = str(input())
+
             if chocice.lower() == 'y':
                 save_code_file(ai_response)
             else:
                 continue
+
         elif intent == 'code_edit':
+
             ai_response = code_edit_pipeline(task)
             type_print(col.LIGHTBLUE_EX+str(ai_response), 0.01)
-            type_print(col.LIGHTYELLOW_EX+'\nWould you like me to edit this file on your computer? [y/n]', 0.01)
+            type_print(col.LIGHTYELLOW_EX+'\nWould you like me to save/edit this file on your computer? [y/n]', 0.01)
             chocice = str(input())
+
             while chocice.lower() not in ('y', 'n'):
                 type_print(col.LIGHTYELLOW_EX+'Please enter y or n: ', 0.01)
                 chocice = str(input())
+
             if chocice.lower() == 'y':
                 save_code_file(ai_response)
             else:
                 continue
+
         elif intent == 'reasoning':
             ai_response = reasoning_pipeline(task)
             type_print(col.LIGHTBLUE_EX+str(ai_response), 0.01)
