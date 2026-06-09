@@ -4,6 +4,8 @@ import platform
 import subprocess
 from time import sleep
 import threading as thread
+import textwrap
+import msvcrt
 
 import AppOpener as app
 import webbrowser as web
@@ -29,11 +31,48 @@ import datetime
 from random import choice
 from colorama import Fore as col
 
-from pynput import keyboard as kb
 
 
 #THIS THING DOES ALMOST EVERYTHING MAINSTREAM CLOSED SOURCE AI DOES: LIKE MULTIMODAL INPUT, FILE GENERATION, CHAT MEMORY, .ETC
 
+
+
+
+def read_input(prompt): # look mom i made my own input function!
+    global attachfile, filebar_files
+    print(prompt, end='', flush=True)
+    buffer = ""
+    while True:
+        ch = msvcrt.getwch()
+        if ch == '\r':
+            print()
+            return buffer
+        elif ch == '\x08':
+            if buffer:
+                buffer = buffer[:-1]
+                print('\b \b', end='', flush=True)
+        elif ch == '\xe0' or ch == '\x00':
+            special = msvcrt.getwch()
+            if special == 'R':
+                attachfile = pick_file()
+                if attachfile:
+                    ext = attachfile.split('.')[-1].lower()
+                    if ext in ("png", "jpg", "jpeg", "gif", "webp"):
+                        icon = "▣"
+                    elif ext in ("py", "java", "js", "html", "kt", "c", "cpp", "cs", "css", "pyw", "ipynb"):
+                        icon = "<\\>"
+                    elif ext in ("txt", "docx", "csv", "pptx", "xlsx"):
+                        icon = "₠"
+                    else:
+                        icon = "▮"
+                    filebar_files.append((icon, Path(attachfile).name))
+                    draw_file_bar()
+                    print(f"\r{prompt}{buffer}", end='', flush=True)
+        elif ch == '\x1b':
+            pass
+        else:
+            buffer += ch
+            print(ch, end='', flush=True)
 
 APP_NAME = "Anything AI"
 hf_token_1 = str(os.environ.get("HF_ACCESS_TOKEN"))
@@ -128,10 +167,11 @@ def parse_pptx_file(path):
 def parse_code_file(path):
     with open(path, "r", encoding="utf-8", errors="ignore") as f:
         return f.read()
-    
+
 def type_print(text, delay):
-    for x in range(len(text)):
-        print(text[x], end="", flush=True)
+    wrapped = textwrap.fill(text, width=width)
+    for x in range(len(wrapped)):
+        print(wrapped[x], end="", flush=True)
         sleep(delay)
     print('\n')
 
@@ -212,26 +252,7 @@ def pick_file():
     if not path:
         return None
     path = str(path).replace("\\", "\\\\")
-    ext = path.split('.')[-1].lower()
 
-    image_exts = ("png", "jpg", "jpeg", "gif", "webp")
-    code_exts  = ("py", "java", "js", "html", "kt", "c", "cpp", "cs", "css", "pyw", "ipynb")
-    text_exts  = ("txt", "docx", "csv", "pptx", "xlsx")
-    
-    if ext in image_exts:
-        icon = "▣"
-        filetype = 'Image'
-    elif ext in code_exts:
-        icon = "<\\>"
-        filetype = 'Code File'
-    elif ext in text_exts:
-        icon = "₠"
-        filetype = 'Document'
-    else:
-        icon = "▮"
-        filetype = 'File'
-    
-    print(f"\x1b[s\n\n\x1b[K{col.LIGHTGREEN_EX}{icon} {filetype} attached: {Path(path).name}{col.WHITE}\x1b[u", end="", flush=True)
     return path
 
 def fetch_wikimedia_image(query):
@@ -247,7 +268,7 @@ def fetch_wikimedia_image(query):
             "piprop": "original",
         }
         myheaders = {
-            "User-Agent": "Anything AI/1.0 (THEbluefirestudios.github.io)"
+            "User-Agent": "Anything AI/1.0 (THEbluefirestudios.github.io)" #very real header
         }
         response = requests.get(search_url, params=search_params, headers=myheaders, timeout=5)
         data = response.json()
@@ -441,7 +462,7 @@ def write_file_from_json(json_string):
 
         elif ext == "pdf":
             c = canvas.Canvas(output_path, pagesize=A4)
-            width, height = A4
+            page_width, height = A4
             y = height - 50
 
             def check_newpage():
@@ -465,7 +486,7 @@ def write_file_from_json(json_string):
                     words = para.split()
                     line = ""
                     for word in words:
-                        if c.stringWidth(line + word, "Helvetica", 11) < width - 100:
+                        if c.stringWidth(line + word, "Helvetica", 11) < page_width - 100:
                             line += word + " "
                         else:
                             check_newpage()
@@ -518,10 +539,11 @@ def sort_prompt(prompt):
 
     system_prompt = (
         "You are a central high-speed Intent Routing Node. Categorize the user prompt into exactly "
-        "one of these strings: 'code_create', 'code_edit', 'reasoning', 'math', 'conversation', 'agentic_task', 'file_generate' 'terminal_command' or 'roleplay'. "
+        "one of these strings: 'code_create', 'code_edit', 'reasoning', 'math', 'conversation', 'agentic_task', 'file_generate', 'terminal_command' or 'roleplay'. "
         "the agentic_task intent only refers to opening an app or a website on the user's pc"
         "Only output 'code_create' if the prompt explicitly states to create code, don't output 'code_create' just because the user attached a file."
         f"Only output 'code_edit' if user has attached a code file OR is code present in earlier chat context: \n{get_context_string()}\n"
+        "If a user requests something that can be done with a terminal command like make a file directory or give me disk partition info, but dosent explicitly state to use the terminal, you may output 'terminal_command' based on what you see fit"
         "Output ONLY the exact category word chosen from the list above. Do not include punctuation, backticks, or any conversational text. "
         f"Use the given context to better understand the meaning of the prompt and infer accordingly \n{get_context_string()}\n"
         "Start printing the word immediately."
@@ -587,6 +609,7 @@ def save_code_file(code):
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(code)
             type_print(f"File updated: {output_path}", 0.01)
+            open_file(output_path)
         else:
             type_print("Save as new file instead? Enter filename or press Enter to discard: ", 0.01)
             newname = input().strip()
@@ -595,12 +618,14 @@ def save_code_file(code):
                 with open(output_path, "w", encoding="utf-8") as f:
                     f.write(code)
                 type_print(f"Saved as: {output_path}", 0.01)
+                open_file(output_path)
             else:
                 type_print("Discarded, file not saved.", 0.01)
     else:
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(code)
         type_print(f"Saved to {output_path}", 0.01)
+        open_file(output_path)
 
 
 def code_create_pipeline(prompt):
@@ -991,6 +1016,8 @@ def agentic_task_pipeline(prompt):
         f"You can ONLY target applications present in this list when generating 'app:' commands:\n[{applist}]\n\n"
         "5. DESCRIPTIVE CLAUSE: If the user describes an application or website by its purpose instead of its direct title, you must deduce the proper tool. "
         "If they describe an application, select the closest functional match available in the application list above.\n\n"
+        "6. SPECIFIC WEBSITE PAGE CLAUSE:\n"
+        "If the user also describes or names a certain page of the website, open that specific page, for example, if a user asks to open the My Stuff page on scratch, return the URL : scratch.mit.edu/mystuff"
         f"Session context:\n{get_context_string()}"
     )
     try:
@@ -1315,10 +1342,13 @@ def terminal_command_pipeline(prompt):
                 return f"Native Hub Error: {e}\nMake sure your HF token is valid and active." 
 
 
-def on_press(key):
-    global attachfile
-    if key == kb.Key.insert:
-        attachfile = pick_file()
+filebar_files = []
+
+def draw_file_bar():
+    if filebar_files:
+        bar = "  ".join(f"[ {f[0]} {f[1]} ]" for f in filebar_files)
+        print(f"\x1b[u\x1b[2K{col.LIGHTGREEN_EX}{bar}{col.WHITE}\x1b[u\x1b[2B", end="", flush=True)
+
 
 
 if __name__ == "__main__":
@@ -1326,86 +1356,84 @@ if __name__ == "__main__":
     print('\n\n\n')
     ui_header()
     print('\n\n\n')
-    print(col.LIGHTBLACK_EX+ (' '*(width-26))+'( + [Insert] | → [Enter] )\n\n')
-    while True:
-        listener = kb.Listener(on_press=on_press)
-        listener.start()
-        
-        task = input(col.LIGHTBLACK_EX+"Ask Anything..."+col.WHITE+'\r')
-        listener.stop()
+    print(col.LIGHTBLACK_EX + (' ' * (width - 26)) + '( + [Insert] | → [Enter] )\n\n')# this thing
 
-        if attachfile != "" and attachfile != None:
+    while True:
+        filebar_files = []
+        
+
+        print(f"\x1b[s") 
+        print(col.LIGHTGREEN_EX + '' + col.WHITE)  
+
+        task = read_input(col.LIGHTBLACK_EX + "Ask Anything..." + col.WHITE + '\r')
+
+        if attachfile:
             fileext = attachfile.split('.')[-1].lower()
-            print('\n\n\n')
+            print('\n')
 
             if fileext in ("png", "jpg", "jpeg", "gif", "webp"):
                 texted_image = image_pipeline(attachfile)
                 attachfile = None
-                task = task + ', User also attached image file showing: '+ texted_image
+                task = task + ', User also attached image file showing: ' + texted_image
 
             elif fileext == 'txt':
                 parsedfile = parse_text_file(attachfile)
                 attachfile = None
-                task = task + ", User also attached text file with contents:\n"+parsedfile
+                task = task + ", User also attached text file with contents:\n" + parsedfile
 
             elif fileext == 'csv':
                 parsedfile = parse_csv_file(attachfile)
                 attachfile = None
-                task = task + ", User also attached csv file with contents:\n"+parsedfile
+                task = task + ", User also attached csv file with contents:\n" + parsedfile
 
             elif fileext == 'docx':
                 parsedfile = parse_docx_file(attachfile)
                 attachfile = None
-                task = task + ", User also attached Microsoft Word file with contents:\n"+parsedfile
+                task = task + ", User also attached Microsoft Word file with contents:\n" + parsedfile
 
             elif fileext == 'xlsx':
                 parsedfile = parse_xlsx_file(attachfile)
                 attachfile = None
-                task = task + ", User also attached Microsoft Excel file with contents:\n"+parsedfile
+                task = task + ", User also attached Microsoft Excel file with contents:\n" + parsedfile
 
             elif fileext == 'pptx':
                 parsedfile = parse_pptx_file(attachfile)
                 attachfile = None
-                task = task + ", User also attached Microsoft PowerPoint file with contents:\n"+parsedfile
+                task = task + ", User also attached Microsoft PowerPoint file with contents:\n" + parsedfile
 
             elif fileext in ("py", "java", "js", "html", "kt", "c", "cpp", "cs", "css", "pyw", "ipynb"):
-                parsedfile = parse_text_file(attachfile)
+                parsedfile = parse_code_file(attachfile)
                 attachfile = None
-                task = task + f", User also attached {fileext} code file with contents:\n"+parsedfile
+                task = task + f", User also attached {fileext} code file with contents:\n" + parsedfile
+
             else:
                 parsedfile = parse_text_file(attachfile)
                 attachfile = None
-                task = task + ", User also attached file with contents:\n"+parsedfile
+                task = task + ", User also attached file with contents:\n" + parsedfile
 
         intent = str(sort_prompt(task)).lower()
 
         if intent == 'code_create':
-
             ai_response = code_create_pipeline(task)
-            type_print(col.LIGHTBLUE_EX+str(ai_response), 0.01)
-            type_print(col.LIGHTYELLOW_EX+'\nWould you like me to save this file to your computer? [y/n]', 0.01)
+            type_print(col.LIGHTBLUE_EX + str(ai_response), 0.01)
+            type_print(col.LIGHTYELLOW_EX + '\nWould you like me to save this file to your computer? [y/n]', 0.01)
             chocice = str(input())
-
             while chocice.lower() not in ('y', 'n'):
-                type_print(col.LIGHTYELLOW_EX+'Please enter y or n: ', 0.01)
+                type_print(col.LIGHTYELLOW_EX + 'Please enter y or n: ', 0.01)
                 chocice = str(input())
-
             if chocice.lower() == 'y':
                 save_code_file(ai_response)
             else:
                 continue
 
         elif intent == 'code_edit':
-
             ai_response = code_edit_pipeline(task)
-            type_print(col.LIGHTBLUE_EX+str(ai_response), 0.01)
-            type_print(col.LIGHTYELLOW_EX+'\nWould you like me to save/edit this file on your computer? [y/n]', 0.01)
+            type_print(col.LIGHTBLUE_EX + str(ai_response), 0.01)
+            type_print(col.LIGHTYELLOW_EX + '\nWould you like me to save/edit this file on your computer? [y/n]', 0.01)
             chocice = str(input())
-
             while chocice.lower() not in ('y', 'n'):
-                type_print(col.LIGHTYELLOW_EX+'Please enter y or n: ', 0.01)
+                type_print(col.LIGHTYELLOW_EX + 'Please enter y or n: ', 0.01)
                 chocice = str(input())
-
             if chocice.lower() == 'y':
                 save_code_file(ai_response)
             else:
@@ -1413,16 +1441,16 @@ if __name__ == "__main__":
 
         elif intent == 'reasoning':
             ai_response = reasoning_pipeline(task)
-            type_print(col.LIGHTBLUE_EX+str(ai_response), 0.01)
+            type_print(col.LIGHTBLUE_EX + str(ai_response), 0.01)
         elif intent == 'conversation':
             ai_response = conversation_pipeline(task)
-            type_print(col.LIGHTBLUE_EX+str(ai_response), 0.01)
+            type_print(col.LIGHTBLUE_EX + str(ai_response), 0.01)
         elif intent == 'math':
             ai_response = math_pipeline(task)
-            type_print(col.LIGHTBLUE_EX+str(ai_response), 0.01)
+            type_print(col.LIGHTBLUE_EX + str(ai_response), 0.01)
         elif intent == 'roleplay':
             ai_response = roleplay_pipeline(task)
-            type_print(col.LIGHTBLUE_EX+str(ai_response), 0.01)
+            type_print(col.LIGHTBLUE_EX + str(ai_response), 0.01)
         elif intent == 'agentic_task':
             agentic_task_pipeline(task)
             ai_response = ""
@@ -1433,4 +1461,4 @@ if __name__ == "__main__":
             run_terminal_command(terminal_command_pipeline(task))
         else:
             ai_response = conversation_pipeline(task)
-            type_print(col.LIGHTBLUE_EX+str(ai_response), 0.01)
+            type_print(col.LIGHTBLUE_EX + str(ai_response), 0.01)
