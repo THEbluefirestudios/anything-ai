@@ -35,7 +35,19 @@ from colorama import Fore as col
 
 #THIS THING DOES ALMOST EVERYTHING MAINSTREAM CLOSED SOURCE AI DOES: LIKE MULTIMODAL INPUT, FILE GENERATION, CHAT MEMORY, .ETC
 
+hf_token_1 = str(os.environ.get("HF_ACCESS_TOKEN"))# adding this block for the non savvy 
+hf_token_2 = str(os.environ.get("HF_ACCESS_TOKEN_2"))
+hf_token_3 = str(os.environ.get("HF_ACCESS_TOKEN_3"))
 
+if hf_token_1 == "None" and hf_token_2 == "None" and hf_token_3 == "None":
+    print(col.RED + "\n[Anything AI] No Hugging Face tokens found.")
+    print(col.YELLOW + "Please set at least one of the following environment variables:")
+    print(col.WHITE + "  HF_ACCESS_TOKEN")
+    print(col.WHITE + "  HF_ACCESS_TOKEN_2")
+    print(col.WHITE + "  HF_ACCESS_TOKEN_3")
+    print(col.LIGHTBLACK_EX + "\nGet a free token at: https://huggingface.co/settings/tokens")
+    input("\nPress Enter to exit...")
+    exit()
 
 
 def read_input(prompt): # look mom i made my own input function!
