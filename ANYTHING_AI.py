@@ -49,11 +49,22 @@ if hf_token_1 == "None" and hf_token_2 == "None" and hf_token_3 == "None":
     input("\nPress Enter to exit...")
     exit()
 
+import os
+import json
 
-def read_input(prompt): # look mom i made my own input function!
+
+# look mom i made my own input function!
+
+
+def read_input(prompt, seed=None):
     global attachfile, filebar_files
-    print(prompt, end='', flush=True)
-    buffer = ""
+    if seed is None:
+        print(prompt, end='', flush=True)
+        buffer = ""
+    else:
+        print(prompt + seed, end='', flush=True) 
+        buffer = seed
+
     while True:
         ch = msvcrt.getwch()
         if ch == '\r':
@@ -66,9 +77,10 @@ def read_input(prompt): # look mom i made my own input function!
         elif ch == '\xe0' or ch == '\x00':
             special = msvcrt.getwch()
             if special == 'R':
-                attachfile = pick_file()
-                if attachfile:
-                    ext = attachfile.split('.')[-1].lower()
+                picked = pick_file()
+                if picked:
+                    attachfile.append(picked)
+                    ext = picked.split('.')[-1].lower()
                     if ext in ("png", "jpg", "jpeg", "gif", "webp"):
                         icon = "▣"
                     elif ext in ("py", "java", "js", "html", "kt", "c", "cpp", "cs", "css", "pyw", "ipynb"):
@@ -77,7 +89,7 @@ def read_input(prompt): # look mom i made my own input function!
                         icon = "₠"
                     else:
                         icon = "▮"
-                    filebar_files.append((icon, Path(attachfile).name))
+                    filebar_files.append((icon, Path(picked).name))
                     draw_file_bar()
                     print(f"\r{prompt}{buffer}", end='', flush=True)
         elif ch == '\x1b':
@@ -85,6 +97,8 @@ def read_input(prompt): # look mom i made my own input function!
         else:
             buffer += ch
             print(ch, end='', flush=True)
+
+
 
 APP_NAME = "Anything AI"
 hf_token_1 = str(os.environ.get("HF_ACCESS_TOKEN"))
@@ -147,6 +161,8 @@ welcome_messages = [
 ]
 
 summarized_context = ""
+message = choice(welcome_messages)
+
 
 def parse_text_file(path):
     with open(path, "r", encoding="utf-8", errors="ignore") as f:
@@ -181,16 +197,19 @@ def parse_code_file(path):
         return f.read()
 
 def type_print(text, delay):
-    wrapped = textwrap.fill(text, width=width)
-    for x in range(len(wrapped)):
-        print(wrapped[x], end="", flush=True)
-        sleep(delay)
-    print('\n')
+    for line in text.splitlines():
+        wrapped_lines = textwrap.wrap(line, width=width) if line.strip() else ['']
+        for wrapped in wrapped_lines:
+            for char in wrapped:
+                print(char, end='', flush=True)
+                sleep(delay)
+            print()
+    print()
 
 def ui_header():
-    global daytime, header, welcome_messages, username, width
+    global daytime, header, welcome_messages, username, width, message
     heading_spaces = (width - len(header[1]))/2
-    message = choice(welcome_messages)
+
     message_spaces = (width - len(message))/2
     if width >= len(header[1]):
         for x in range(len(header)):
@@ -223,14 +242,16 @@ def run_terminal_command(command):
     print(width*'-'+'\n')
     print('   '+command+ '\n')
     print(width*'-'+'\n')
-    type_print(col.YELLOW+'\nDo you accept or reject the execution of this command? [y/n]', 0.01)
+    type_print(col.YELLOW+'\nDo you accept or reject the execution of this command? [y/n]'+ col.WHITE, 0.01)
     choice = ''
     while choice.lower() not in ['y', 'n']:
         choice = str(input())
         if choice.lower() not in ['y','n']:
-            print(col.YELLOW+'Invalid input, please enter y or n')
+            print(col.YELLOW+'Invalid input, please enter y or n'+ col.WHITE)
     if choice.lower() == 'y':
+        print(f"{col.CYAN}Terminal"+ ('-'*(width-8))+ '\n' + col.WHITE)
         subprocess.run(command, shell=True)
+        print('\n'+ col.CYAN + ('-'* width)+ '\n')
         context.append('User accepted AI\'s request to run command')
         print(col.LIGHTGREEN_EX+f'\nExecuted command:{command}\n')
     else:
@@ -361,7 +382,127 @@ def maybe_summarize_context():
 def get_context_string():
     return f"Summarized history:\n{summarized_context}\n\nRecent exchanges:\n{chr(10).join(context)}"
 
+def load_memory():
+    global summarized_context
+    memory_path = f"C:\\Users\\{os.getlogin()}\\Anything AI\\memory\\memory.txt"
+    if os.path.exists(memory_path):
+        with open(memory_path, "r", encoding="utf-8") as f:
+            summarized_context = f.read()
 
+def save_memory():
+    memory_dir = f"C:\\Users\\{os.getlogin()}\\Anything AI\\memory\\"
+    os.makedirs(memory_dir, exist_ok=True)
+    with open(memory_dir + "memory.txt", "w", encoding="utf-8") as f:
+        f.write(summarized_context)
+
+def save_chat_history():
+    if not context:
+        return
+    chat_dir = f"C:\\Users\\{os.getlogin()}\\Anything AI\\chats\\"
+    os.makedirs(chat_dir, exist_ok=True)
+
+    first_msg = ""
+    for entry in context:
+        if entry.startswith("User said:"):
+            first_msg = entry.replace("User said:", "").strip()[:40]
+            break
+
+    safe_name = "".join(c for c in first_msg if c.isalnum() or c in (' ', '-', '_')).strip()
+    safe_name = safe_name if safe_name else "chat"
+    filename = safe_name + ".json"
+
+    output = chat_dir + filename
+    counter = 1
+    while os.path.isfile(output):
+        output = chat_dir + f"{safe_name}[{counter}].json"
+        counter += 1
+
+    with open(output, "w", encoding="utf-8") as f:
+        json.dump(context, f, indent=2)
+
+def get_recent_chats(n=5):
+    chat_dir = f"C:\\Users\\{os.getlogin()}\\Anything AI\\chats\\"
+    if not os.path.exists(chat_dir):
+        return []
+    files = sorted(
+        [f for f in os.listdir(chat_dir) if f.endswith(".json")],
+        reverse=True
+    )
+    return files[:n]
+
+def load_chat(filename):
+    global context
+    chat_dir = f"C:\\Users\\{os.getlogin()}\\Anything AI\\chats\\"
+    with open(chat_dir + filename, "r", encoding="utf-8") as f:
+        context = json.load(f)
+
+def print_chat_history():
+    if not context:
+        return
+    print('\n')
+    for entry in context:
+        if entry.startswith('User said:'):
+            print(col.WHITE + entry + col.WHITE)
+        elif entry.startswith('Ai responded:'):
+            print(col.LIGHTBLUE_EX + entry + col.WHITE)
+        elif entry.startswith('AI opened') or entry.startswith('AI closed'):
+            print(col.LIGHTGREEN_EX + entry + col.WHITE)
+        elif entry.startswith('AI failed'):
+            print(col.RED + entry + col.WHITE)
+        elif entry.startswith('Ai asked to run'):
+            print(col.YELLOW + entry + col.WHITE)
+        else:
+            print(col.WHITE + entry)
+    print('\n')
+
+def startup_menu():
+    recent_chats = get_recent_chats()
+    if not recent_chats:
+        return None
+
+    options = recent_chats + ["↾▰ Open Chats Folder..."]
+    selected = 0
+
+    def draw_menu():
+        for i, option in enumerate(options):
+            name = option.replace(".json", "") if option.endswith(".json") else option
+            prefix = col.LIGHTBLUE_EX + "⬡ " if i == selected else col.LIGHTBLACK_EX + "⬡ "
+            print(f"\x1b[2K{prefix}{name}{col.WHITE}", flush=True)
+
+    print(col.LIGHTBLACK_EX + "Ask Anything..." + col.WHITE)
+    print()
+    print(col.LIGHTBLACK_EX + "Recent Chats" + '=' * (width - len("Recent Chats")) + col.WHITE)
+    print(f"\x1b[s", end="", flush=True)
+    draw_menu()
+    print(col.LIGHTBLACK_EX + '=' * width + col.WHITE + '\n')
+
+    while True:
+        ch = msvcrt.getwch()
+        if ch == '\r':
+            choice = options[selected]
+            if choice.endswith(".json"):
+                load_chat(choice)
+                print_chat_history()
+            else:
+                os.startfile(f"C:\\Users\\{os.getlogin()}\\Anything AI\\chats\\")
+            return None
+        elif ch == '\xe0' or ch == '\x00':
+            special = msvcrt.getwch()
+            if special == 'H':
+                selected = (selected - 1) % len(options)
+                print(f"\x1b[u", end="", flush=True)
+                draw_menu()
+            elif special == 'P':
+                selected = (selected + 1) % len(options)
+                print(f"\x1b[u", end="", flush=True)
+                draw_menu()
+        elif ch.isprintable():
+            os.system('cls')
+            print('\n\n\n')
+            ui_header()
+            print('\n\n\n')
+            return ch
+        
 def write_file_from_json(json_string):
     try:
         data = json.loads(json_string)
@@ -551,18 +692,42 @@ def sort_prompt(prompt):
 
     system_prompt = (
         "You are a central high-speed Intent Routing Node. Categorize the user prompt into exactly "
-        "one of these strings: 'code_create', 'code_edit', 'reasoning', 'math', 'conversation', 'agentic_task', 'file_generate', 'terminal_command' or 'roleplay'. "
-        "the agentic_task intent only refers to opening an app or a website on the user's pc"
-        "Only output 'code_create' if the prompt explicitly states to create code, don't output 'code_create' just because the user attached a file."
-        f"Only output 'code_edit' if user has attached a code file OR is code present in earlier chat context: \n{get_context_string()}\n"
-        "If a user requests something that can be done with a terminal command like make a file directory or give me disk partition info, but dosent explicitly state to use the terminal, you may output 'terminal_command' based on what you see fit"
-        "Output ONLY the exact category word chosen from the list above. Do not include punctuation, backticks, or any conversational text. "
-        f"Use the given context to better understand the meaning of the prompt and infer accordingly \n{get_context_string()}\n"
-        "Start printing the word immediately."
+        "one of these strings: 'code_create', 'code_edit', 'reasoning', 'math', 'conversation', 'agentic_task', 'file_generate', 'terminal_command' or 'roleplay'.\n\n"
+        
+        "ROUTING RULES - read carefully:\n\n"
+        
+        "code_create: User wants you to WRITE source code for a program, script, or function. . DO NOT OUTPUT THIS IS THE USER IS ASKING ABOUT FILES"
+        "Examples: 'write a snake game', 'make a python script that does X', 'code a sorting algorithm'.\n\n"
+        
+        "code_edit: User wants to modify, fix, debug, or improve existing code. "
+        "ONLY use this if a code file is attached OR code exists in the conversation context below. "
+        "Examples: 'fix this bug', 'add a feature to my script', 'refactor this function'.\n\n"
+        
+        "terminal_command: User wants to perform a FILE SYSTEM or OS-level operation that is best done with a single terminal command. "
+        "Examples: 'create an empty text file', 'delete the folder', 'rename this file', 'list all files in directory', 'make a new folder'. "
+        "If it can be done in one terminal command, route here instead of code_create.\n\n"
+        
+        "file_generate: User wants a document, spreadsheet, or presentation CREATED WITH CONTENT. DO NOT OUTPUT THIS IS THE USER IS ASKING ABOUT FILES"
+        "Examples: 'make a powerpoint about space', 'create a word document explaining X', 'generate a csv of sales data'.\n\n"
+        
+        "agentic_task: User wants to OPEN or CLOSE an app or website on their PC. "
+        "Examples: 'open spotify', 'close notepad', 'go to youtube.com'.\n\n"
+        
+        "reasoning: User has a complex logical, analytical, or diagnostic problem to solve step by step.\n\n"
+        
+        "math: User wants a mathematical calculation, proof, or algebraic manipulation.\n\n"
+        
+        "roleplay: User wants creative writing, storytelling, or character roleplay.\n\n"
+        
+        "conversation: Everything else — questions, explanations, general chat.\n\n"
+        
+        f"CONVERSATION CONTEXT (use to determine if code exists for code_edit):\n{get_context_string()}\n\n"
+        
+        "Output ONLY the exact category word. No punctuation, no explanation. Start immediately."
     )
     try:
         response = client1.chat.completions.create(
-            model="meta-llama/Llama-3.1-8B-Instruct",
+            model="deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": str(prompt)}
@@ -897,7 +1062,7 @@ def reasoning_pipeline(prompt):
         bg_thread.start()
 
     system_prompt = (
-        "You are Anything AI, an advanced logical inference core. Break down the user's complex query, puzzle, or diagnostic trace step-by-step with absolute accuracy. Make sure your response has no markdown formatting and is in plaintext, something can be pasted in a terminal window.\n\n"
+        "You are Anything AI, an advanced logical inference core. Break down the user's complex query, puzzle, or diagnostic trace step-by-step with absolute accuracy. Make sure your response has no markdown formatting and is in plaintext, something can be pasted in a terminal window, but should still contain puctuation like capitalization full stops, commas, colons, etc..\n\n"
         f"Relevant session data:\n{get_context_string()}"
     )
 
@@ -957,7 +1122,7 @@ def math_pipeline(prompt):
         bg_thread.start()
 
     system_prompt = (
-        "You are Anything AI, a specialized mathematical calculation and verification engine. Perform precise computation, algebraic manipulation, or proof validation step-by-step. Make sure your response has no markdown formatting and is in plaintext, something can be pasted in a terminal window.\n\n"
+        "You are Anything AI, a specialized mathematical calculation and verification engine. Perform precise computation, algebraic manipulation, or proof validation step-by-step. Make sure your response has no markdown formatting and is in plaintext, something can be pasted in a terminal window, but should still contain puctuation like capitalization full stops, commas, colons, etc.\n\n"
         f"Mathematical context history:\n{get_context_string()}"
     )
 
@@ -1263,7 +1428,7 @@ def image_pipeline(image_path, user_question="Describe this image deeply."):
         {"role": "system", "content": system_prompt},
         {
             "role": "user",
-            "content": [
+            "content": [# hello, open source enthusiast, if u reached here reading my sphaggeti code, congrats!
                 {"type": "text", "text": str(user_question)},
                 {"type": "image_url", "image_url": {"url": data_url}}
             ]
@@ -1364,65 +1529,59 @@ def draw_file_bar():
 
 
 if __name__ == "__main__":
-    attachfile = None
+    attachfile = []
     print('\n\n\n')
     ui_header()
     print('\n\n\n')
-    print(col.LIGHTBLACK_EX + (' ' * (width - 26)) + '( + [Insert] | → [Enter] )\n\n')# this thing
+    load_memory()
+    seed = startup_menu()
+    print(col.LIGHTBLACK_EX + (' ' * (width - 26)) + '( + [Insert] | → [Enter] )\n\n')
 
     while True:
         filebar_files = []
-        
 
-        print(f"\x1b[s") 
-        print(col.LIGHTGREEN_EX + '' + col.WHITE)  
+        print(f"\x1b[s")
+        print(col.LIGHTGREEN_EX + '' + col.WHITE)
 
-        task = read_input(col.LIGHTBLACK_EX + "Ask Anything..." + col.WHITE + '\r')
+        task = read_input(col.LIGHTBLACK_EX + "Ask Anything..." + col.WHITE, seed=seed)
+        seed = None 
+        if task.strip() == "":
+            if context:
+                print_chat_history()
+            continue
 
-        if attachfile:
-            fileext = attachfile.split('.')[-1].lower()
-            print('\n')
+        print()
+        print(col.LIGHTBLACK_EX + 'Processing Files...\r', end='', flush=True)
+        for every_file in attachfile:
+            fileext = every_file.split('.')[-1].lower()
 
             if fileext in ("png", "jpg", "jpeg", "gif", "webp"):
-                texted_image = image_pipeline(attachfile)
-                attachfile = None
+                texted_image = image_pipeline(every_file)
                 task = task + ', User also attached image file showing: ' + texted_image
-
             elif fileext == 'txt':
-                parsedfile = parse_text_file(attachfile)
-                attachfile = None
+                parsedfile = parse_text_file(every_file)
                 task = task + ", User also attached text file with contents:\n" + parsedfile
-
             elif fileext == 'csv':
-                parsedfile = parse_csv_file(attachfile)
-                attachfile = None
+                parsedfile = parse_csv_file(every_file)
                 task = task + ", User also attached csv file with contents:\n" + parsedfile
-
             elif fileext == 'docx':
-                parsedfile = parse_docx_file(attachfile)
-                attachfile = None
+                parsedfile = parse_docx_file(every_file)
                 task = task + ", User also attached Microsoft Word file with contents:\n" + parsedfile
-
             elif fileext == 'xlsx':
-                parsedfile = parse_xlsx_file(attachfile)
-                attachfile = None
+                parsedfile = parse_xlsx_file(every_file)
                 task = task + ", User also attached Microsoft Excel file with contents:\n" + parsedfile
-
             elif fileext == 'pptx':
-                parsedfile = parse_pptx_file(attachfile)
-                attachfile = None
+                parsedfile = parse_pptx_file(every_file)
                 task = task + ", User also attached Microsoft PowerPoint file with contents:\n" + parsedfile
-
             elif fileext in ("py", "java", "js", "html", "kt", "c", "cpp", "cs", "css", "pyw", "ipynb"):
-                parsedfile = parse_code_file(attachfile)
-                attachfile = None
+                parsedfile = parse_code_file(every_file)
                 task = task + f", User also attached {fileext} code file with contents:\n" + parsedfile
-
             else:
-                parsedfile = parse_text_file(attachfile)
-                attachfile = None
+                parsedfile = parse_text_file(every_file)
                 task = task + ", User also attached file with contents:\n" + parsedfile
 
+        attachfile = []
+        print('                              ')
         intent = str(sort_prompt(task)).lower()
 
         if intent == 'code_create':
@@ -1437,7 +1596,6 @@ if __name__ == "__main__":
                 save_code_file(ai_response)
             else:
                 continue
-
         elif intent == 'code_edit':
             ai_response = code_edit_pipeline(task)
             type_print(col.LIGHTBLUE_EX + str(ai_response), 0.01)
@@ -1450,7 +1608,6 @@ if __name__ == "__main__":
                 save_code_file(ai_response)
             else:
                 continue
-
         elif intent == 'reasoning':
             ai_response = reasoning_pipeline(task)
             type_print(col.LIGHTBLUE_EX + str(ai_response), 0.01)
@@ -1474,3 +1631,6 @@ if __name__ == "__main__":
         else:
             ai_response = conversation_pipeline(task)
             type_print(col.LIGHTBLUE_EX + str(ai_response), 0.01)
+
+        save_memory()
+        save_chat_history()
