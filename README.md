@@ -19,7 +19,7 @@ No subscriptions. No API keys to buy. Runs on Hugging Face's free inference tier
 
 ## Features
 
-- **Intelligent Intent Routing** : Llama 3.1 8B classifies every prompt and sends it to the right expert
+- **Intelligent Intent Routing** : Deepseek R1 Distilled 70B classifies every prompt and sends it to the right expert
 - **Specialist Models** for each task:
   - `code_create` / `code_edit` → Qwen3 Coder 480B
   - `reasoning` / `math` → DeepSeek R1 Distill 70B
@@ -107,7 +107,7 @@ Just type naturally. Anything AI figures out what you need.
 | Key | Action |
 |---|---|
 | `Insert` | Open file explorer to attach any supported file (image files supported by `PIL`, Certain text and Microsoft Office files, and code files like `.py`, `.java`, `.cpp` etc. |
-| `Enter` | Send prompt (Straifghtforward, isn't it? |
+| `Enter` | Send prompt (Straifghtforward, isn't it?) |
 
 ### Output Files
 
@@ -124,7 +124,7 @@ And will be automatically opened on your PC
 User Prompt
      │
      ▼
- Llama 3.1 8B (Router)
+DeepSeek R1 70B (Router)
      │
      ├── code_create  ──► Qwen3 Coder 480B
      ├── code_edit    ──► Qwen3 Coder 480B
