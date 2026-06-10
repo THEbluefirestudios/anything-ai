@@ -140,6 +140,8 @@ DeepSeek R1 70B (Router)
 
 Context is stored as a rolling list. The last 5 exchanges are kept raw for immediate reference. Anything older is compressed by Llama 3.1 8B in a background thread so memory never bloats without losing important details.
 
+Long term context is saved periodically, in `Anything AI\memory\memory.txt`
+
 **Token Fallback Chain**
 
 Every API call tries `client1` → `client2` → `client3` in sequence. If one token is rate limited or expired, the next one takes over transparently.
@@ -149,9 +151,7 @@ Every API call tries `client1` → `client2` → `client3` in sequence. If one t
 ## Limitations
 
 - Max code output is ~2000 tokens per generation, but it depends on your Hugging Face account tier.
-- Agentic app control is Windows-only
-- No persistent memory between sessions (context resets on restart)
-- Image input requires a vision-capable model endpoint on HF
+- Is currently Windows-only
 
 ---
 
