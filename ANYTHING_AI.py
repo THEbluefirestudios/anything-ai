@@ -338,45 +338,14 @@ def maybe_summarize_context():
         f"You are a local companion memory engine. Update the summarised context (currently: {summarized_context}) to contain details from the given conversation snippet. Keep it ultra-condensed, preserving only core settings, app errors, preferences, computer code or specific details of the conversation. Make sure to not use ANY markdown formatting in the summary, keep everything in plaintext. Make sure to keep computer code in ITS ENTIRETY, do NOT shorten computer code. Start working immediately."
     )
     try:
-        response = client1.chat.completions.create(
-            model="meta-llama/Llama-3.1-8B-Instruct",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": raw}
-            ],
-            max_tokens=500,
-            temperature=0.1
+        summarized_context = call_with_fallback(
+            "meta-llama/Llama-3.1-8B-Instruct",
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": raw}],
+            500, 0.1
         )
-        summarized_context = str(response.choices[0].message.content).strip()
         context = keep
     except:
-        try:
-            response = client2.chat.completions.create(
-                model="meta-llama/Llama-3.1-8B-Instruct",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": raw}
-                ],
-                max_tokens=500,
-                temperature=0.1
-            )
-            summarized_context = str(response.choices[0].message.content).strip()
-            context = keep
-        except:
-            try:
-                response = client3.chat.completions.create(
-                    model="meta-llama/Llama-3.1-8B-Instruct",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": raw}
-                    ],
-                    max_tokens=500,
-                    temperature=0.1
-                )
-                summarized_context = str(response.choices[0].message.content).strip()
-                context = keep
-            except:
-                pass
+        pass
 
 
 def get_context_string():
@@ -687,6 +656,21 @@ def write_file_from_json(json_string):
         print(col.RED+f"File write error: {e}")
 
 
+def call_with_fallback(model, messages, max_tokens, temperature):
+    for active_client in [client1, client2, client3]:
+        try:
+            response = active_client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+            return str(response.choices[0].message.content).strip()
+        except:
+            continue
+    raise Exception("All available client tokens exhausted. Make sure your HF tokens are active.")
+
+
 def sort_prompt(prompt):
     global context, summarized_context
 
@@ -726,45 +710,13 @@ def sort_prompt(prompt):
         "Output ONLY the exact category word. No punctuation, no explanation. Start immediately."
     )
     try:
-        response = client1.chat.completions.create(
-            model="deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": str(prompt)}
-            ],
-            max_tokens=50,
-            temperature=0.1
+        return call_with_fallback(
+            "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": str(prompt)}],
+            50, 0.1
         )
-        category = str(response.choices[0].message.content).strip()
-        return category
     except:
-        try:
-            response = client2.chat.completions.create(
-                model="meta-llama/Llama-3.1-8B-Instruct",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": str(prompt)}
-                ],
-                max_tokens=50,
-                temperature=0.1
-            )
-            category = str(response.choices[0].message.content).strip()
-            return category
-        except:
-            try:
-                response = client3.chat.completions.create(
-                    model="meta-llama/Llama-3.1-8B-Instruct",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": str(prompt)}
-                    ],
-                    max_tokens=50,
-                    temperature=0.1
-                )
-                category = str(response.choices[0].message.content).strip()
-                return category
-            except Exception as e:
-                return "conversation"
+        return "conversation"
 
 
 def save_code_file(code):
@@ -824,51 +776,16 @@ def code_create_pipeline(prompt):
     )
 
     try:
-        response = client1.chat.completions.create(
-            model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": str(prompt)}
-            ],
-            max_tokens=2000,
-            temperature=0.3
+        ai_reply = call_with_fallback(
+            "Qwen/Qwen3-Coder-480B-A35B-Instruct",
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": str(prompt)}],
+            2000, 0.3
         )
-        ai_reply = str(response.choices[0].message.content).strip()
         context.append('User said: ' + str(prompt))
         context.append('Ai responded: ' + ai_reply)
         return ai_reply
-    except:
-        try:
-            response = client2.chat.completions.create(
-                model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": str(prompt)}
-                ],
-                max_tokens=2000,
-                temperature=0.3
-            )
-            ai_reply = str(response.choices[0].message.content).strip()
-            context.append('User said: ' + str(prompt))
-            context.append('Ai responded: ' + ai_reply)
-            return ai_reply
-        except:
-            try:
-                response = client3.chat.completions.create(
-                    model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": str(prompt)}
-                    ],
-                    max_tokens=2000,
-                    temperature=0.3
-                )
-                ai_reply = str(response.choices[0].message.content).strip()
-                context.append('User said: ' + str(prompt))
-                context.append('Ai responded: ' + ai_reply)
-                return ai_reply
-            except Exception as e:
-                return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
+    except Exception as e:
+        return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
 
 
 def code_edit_pipeline(prompt):
@@ -887,51 +804,16 @@ def code_edit_pipeline(prompt):
     )
 
     try:
-        response = client1.chat.completions.create(
-            model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": str(prompt)}
-            ],
-            max_tokens=2000,
-            temperature=0.1
+        ai_reply = call_with_fallback(
+            "Qwen/Qwen3-Coder-480B-A35B-Instruct",
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": str(prompt)}],
+            2000, 0.1
         )
-        ai_reply = str(response.choices[0].message.content).strip()
         context.append('User said: ' + str(prompt))
         context.append('Ai responded: ' + ai_reply)
         return ai_reply
-    except:
-        try:
-            response = client2.chat.completions.create(
-                model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": str(prompt)}
-                ],
-                max_tokens=2000,
-                temperature=0.1
-            )
-            ai_reply = str(response.choices[0].message.content).strip()
-            context.append('User said: ' + str(prompt))
-            context.append('Ai responded: ' + ai_reply)
-            return ai_reply
-        except:
-            try:
-                response = client3.chat.completions.create(
-                    model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": str(prompt)}
-                    ],
-                    max_tokens=2000,
-                    temperature=0.1
-                )
-                ai_reply = str(response.choices[0].message.content).strip()
-                context.append('User said: ' + str(prompt))
-                context.append('Ai responded: ' + ai_reply)
-                return ai_reply
-            except Exception as e:
-                return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
+    except Exception as e:
+        return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
 
 
 def conversation_pipeline(prompt):
@@ -947,51 +829,16 @@ def conversation_pipeline(prompt):
     )
 
     try:
-        response = client1.chat.completions.create(
-            model="Qwen/Qwen2.5-72B-Instruct",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": str(prompt)}
-            ],
-            max_tokens=1000,
-            temperature=0.7
+        ai_reply = call_with_fallback(
+            "Qwen/Qwen2.5-72B-Instruct",
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": str(prompt)}],
+            1000, 0.7
         )
-        ai_reply = str(response.choices[0].message.content).strip()
         context.append('User said: ' + str(prompt))
         context.append('Ai responded: ' + ai_reply)
         return ai_reply
-    except:
-        try:
-            response = client2.chat.completions.create(
-                model="Qwen/Qwen2.5-72B-Instruct",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": str(prompt)}
-                ],
-                max_tokens=1000,
-                temperature=0.7
-            )
-            ai_reply = str(response.choices[0].message.content).strip()
-            context.append('User said: ' + str(prompt))
-            context.append('Ai responded: ' + ai_reply)
-            return ai_reply
-        except:
-            try:
-                response = client3.chat.completions.create(
-                    model="Qwen/Qwen2.5-72B-Instruct",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": str(prompt)}
-                    ],
-                    max_tokens=1000,
-                    temperature=0.7
-                )
-                ai_reply = str(response.choices[0].message.content).strip()
-                context.append('User said: ' + str(prompt))
-                context.append('Ai responded: ' + ai_reply)
-                return ai_reply
-            except Exception as e:
-                return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
+    except Exception as e:
+        return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
 
 
 def roleplay_pipeline(prompt):
@@ -1007,51 +854,16 @@ def roleplay_pipeline(prompt):
     )
 
     try:
-        response = client1.chat.completions.create(
-            model="Qwen/Qwen2.5-72B-Instruct",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": str(prompt)}
-            ],
-            max_tokens=1200,
-            temperature=0.85
+        ai_reply = call_with_fallback(
+            "Qwen/Qwen2.5-72B-Instruct",
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": str(prompt)}],
+            1200, 0.85
         )
-        ai_reply = str(response.choices[0].message.content).strip()
         context.append('User said: ' + str(prompt))
         context.append('Ai responded: ' + ai_reply)
         return ai_reply
-    except:
-        try:
-            response = client2.chat.completions.create(
-                model="Qwen/Qwen2.5-72B-Instruct",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": str(prompt)}
-                ],
-                max_tokens=1200,
-                temperature=0.85
-            )
-            ai_reply = str(response.choices[0].message.content).strip()
-            context.append('User said: ' + str(prompt))
-            context.append('Ai responded: ' + ai_reply)
-            return ai_reply
-        except:
-            try:
-                response = client3.chat.completions.create(
-                    model="Qwen/Qwen2.5-72B-Instruct",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": str(prompt)}
-                    ],
-                    max_tokens=1200,
-                    temperature=0.85
-                )
-                ai_reply = str(response.choices[0].message.content).strip()
-                context.append('User said: ' + str(prompt))
-                context.append('Ai responded: ' + ai_reply)
-                return ai_reply
-            except Exception as e:
-                return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
+    except Exception as e:
+        return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
 
 
 def reasoning_pipeline(prompt):
@@ -1067,51 +879,16 @@ def reasoning_pipeline(prompt):
     )
 
     try:
-        response = client1.chat.completions.create(
-            model="deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": str(prompt)}
-            ],
-            max_tokens=2500,
-            temperature=0.2
+        ai_reply = call_with_fallback(
+            "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": str(prompt)}],
+            2500, 0.2
         )
-        ai_reply = str(response.choices[0].message.content).strip()
         context.append('User said: ' + str(prompt))
         context.append('Ai responded: ' + ai_reply)
         return ai_reply
-    except:
-        try:
-            response = client2.chat.completions.create(
-                model="deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": str(prompt)}
-                ],
-                max_tokens=2500,
-                temperature=0.2
-            )
-            ai_reply = str(response.choices[0].message.content).strip()
-            context.append('User said: ' + str(prompt))
-            context.append('Ai responded: ' + ai_reply)
-            return ai_reply
-        except:
-            try:
-                response = client3.chat.completions.create(
-                    model="deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": str(prompt)}
-                    ],
-                    max_tokens=2500,
-                    temperature=0.2
-                )
-                ai_reply = str(response.choices[0].message.content).strip()
-                context.append('User said: ' + str(prompt))
-                context.append('Ai responded: ' + ai_reply)
-                return ai_reply
-            except Exception as e:
-                return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
+    except Exception as e:
+        return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
 
 
 def math_pipeline(prompt):
@@ -1127,51 +904,16 @@ def math_pipeline(prompt):
     )
 
     try:
-        response = client1.chat.completions.create(
-            model="deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": str(prompt)}
-            ],
-            max_tokens=1500,
-            temperature=0.1
+        ai_reply = call_with_fallback(
+            "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": str(prompt)}],
+            1500, 0.1
         )
-        ai_reply = str(response.choices[0].message.content).strip()
         context.append('User said: ' + str(prompt))
         context.append('Ai responded: ' + ai_reply)
         return ai_reply
-    except:
-        try:
-            response = client2.chat.completions.create(
-                model="deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": str(prompt)}
-                ],
-                max_tokens=1500,
-                temperature=0.1
-            )
-            ai_reply = str(response.choices[0].message.content).strip()
-            context.append('User said: ' + str(prompt))
-            context.append('Ai responded: ' + ai_reply)
-            return ai_reply
-        except:
-            try:
-                response = client3.chat.completions.create(
-                    model="deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": str(prompt)}
-                    ],
-                    max_tokens=1500,
-                    temperature=0.1
-                )
-                ai_reply = str(response.choices[0].message.content).strip()
-                context.append('User said: ' + str(prompt))
-                context.append('Ai responded: ' + ai_reply)
-                return ai_reply
-            except Exception as e:
-                return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
+    except Exception as e:
+        return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
 
 
 def agentic_task_pipeline(prompt):
@@ -1197,20 +939,9 @@ def agentic_task_pipeline(prompt):
         "If the user also describes or names a certain page of the website, open that specific page, for example, if a user asks to open the My Stuff page on scratch, return the URL : scratch.mit.edu/mystuff"
         f"Session context:\n{get_context_string()}"
     )
-    try:
-        response = client1.chat.completions.create(
-            model="Qwen/Qwen2.5-Coder-32B-Instruct",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": str(prompt)}
-            ],
-            max_tokens=50,
-            temperature=0.1
-        )
-        ai_reply = str(response.choices[0].message.content).strip()
-        context.append('User said: ' + str(prompt))
 
-        if 'app:open:' in ai_reply:
+    def dispatch(ai_reply):
+        if ai_reply.startswith('app:open:'):
             appname = ai_reply.removeprefix('app:open:')
             try:
                 app.open(appname, match_closest=True, output=False, throw_error=True)
@@ -1219,7 +950,7 @@ def agentic_task_pipeline(prompt):
             except Exception as e:
                 type_print(col.LIGHTBLUE_EX + "Sorry, I couldn't find that application on your system.", 0.01)
                 context.append('AI failed to open app: ' + appname)
-        elif 'app:close:' in ai_reply:
+        elif ai_reply.startswith('app:close:'):
             appname = ai_reply.removeprefix('app:close:')
             try:
                 app.close(appname, match_closest=True, output=False, throw_error=True)
@@ -1228,7 +959,7 @@ def agentic_task_pipeline(prompt):
             except Exception as e:
                 type_print(col.LIGHTBLUE_EX + "Sorry, I couldn't find that application running on your system.", 0.01)
                 context.append('AI failed to close app: ' + appname)
-        elif 'web:' in ai_reply:
+        elif ai_reply.startswith('web:'):
             webname = ai_reply.removeprefix('web:')
             try:
                 web.open(webname)
@@ -1237,90 +968,17 @@ def agentic_task_pipeline(prompt):
             except Exception as e:
                 type_print(col.LIGHTBLUE_EX + "Sorry, I couldn't open the website you specified", 0.01)
                 context.append('AI failed to open website: ' + webname)
-    except:
-        try:
-            response = client2.chat.completions.create(
-                model="Qwen/Qwen2.5-Coder-32B-Instruct",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": str(prompt)}
-                ],
-                max_tokens=50,
-                temperature=0.1
-            )
-            ai_reply = str(response.choices[0].message.content).strip()
-            context.append('User said: ' + str(prompt))
 
-            if 'app:open:' in ai_reply:
-                appname = ai_reply.removeprefix('app:open:')
-                try:
-                    app.open(appname, match_closest=True, output=False, throw_error=True)
-                    type_print(col.LIGHTGREEN_EX + 'AI opened app: ' + appname, 0.01)
-                    context.append('AI opened app: ' + appname)
-                except Exception as e:
-                    type_print(col.LIGHTBLUE_EX + "Sorry, I couldn't find that application on your system.", 0.01)
-                    context.append('AI failed to open app: ' + appname)
-            elif 'app:close:' in ai_reply:
-                appname = ai_reply.removeprefix('app:close:')
-                try:
-                    app.close(appname, match_closest=True, output=False, throw_error=True)
-                    type_print(col.LIGHTGREEN_EX + 'AI closed app: ' + appname, 0.01)
-                    context.append('AI closed app: ' + appname)
-                except Exception as e:
-                    type_print(col.LIGHTBLUE_EX + "Sorry, I couldn't find that application running on your system.", 0.01)
-                    context.append('AI failed to close app: ' + appname)
-            elif 'web:' in ai_reply:
-                webname = ai_reply.removeprefix('web:')
-                try:
-                    web.open(webname)
-                    type_print(col.LIGHTGREEN_EX + 'AI opened website: ' + webname, 0.01)
-                    context.append('AI opened website: ' + webname)
-                except Exception as e:
-                    type_print(col.LIGHTBLUE_EX + "Sorry, I couldn't open the website you specified", 0.01)
-                    context.append('AI failed to open website: ' + webname)
-        except:
-            try:
-                response = client3.chat.completions.create(
-                    model="Qwen/Qwen2.5-Coder-32B-Instruct",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": str(prompt)}
-                    ],
-                    max_tokens=50,
-                    temperature=0.1
-                )
-                ai_reply = str(response.choices[0].message.content).strip()
-                context.append('User said: ' + str(prompt))
-
-                if 'app:open:' in ai_reply:
-                    appname = ai_reply.removeprefix('app:open:')
-                    try:
-                        app.open(appname, match_closest=True, output=False, throw_error=True)
-                        type_print(col.LIGHTGREEN_EX + 'AI opened app: ' + appname, 0.01)
-                        context.append('AI opened app: ' + appname)
-                    except Exception as e:
-                        type_print(col.LIGHTBLUE_EX + "Sorry, I couldn't find that application on your system.", 0.01)
-                        context.append('AI failed to open app: ' + appname)
-                elif 'app:close:' in ai_reply:
-                    appname = ai_reply.removeprefix('app:close:')
-                    try:
-                        app.close(appname, match_closest=True, output=False, throw_error=True)
-                        type_print(col.LIGHTGREEN_EX + 'AI closed app: ' + appname, 0.01)
-                        context.append('AI closed app: ' + appname)
-                    except Exception as e:
-                        type_print(col.LIGHTBLUE_EX + "Sorry, I couldn't find that application running on your system.", 0.01)
-                        context.append('AI failed to close app: ' + appname)
-                elif 'web:' in ai_reply:
-                    webname = ai_reply.removeprefix('web:')
-                    try:
-                        web.open(webname)
-                        type_print(col.LIGHTGREEN_EX + 'AI opened website: ' + webname, 0.01)
-                        context.append('AI opened website: ' + webname)
-                    except Exception as e:
-                        type_print(col.LIGHTBLUE_EX + "Sorry, I couldn't open the website you specified", 0.01)
-                        context.append('AI failed to open website: ' + webname)
-            except Exception as e:
-                return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
+    try:
+        ai_reply = call_with_fallback(
+            "Qwen/Qwen2.5-Coder-32B-Instruct",
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": str(prompt)}],
+            50, 0.1
+        )
+        context.append('User said: ' + str(prompt))
+        dispatch(ai_reply)
+    except Exception as e:
+        return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
             
 def file_generate_pipeline(prompt):
     global context, summarized_context
@@ -1362,51 +1020,16 @@ def file_generate_pipeline(prompt):
         "{ \"section_title\": \"Section Heading\", \"paragraphs\": [\"paragraph 1\", \"paragraph 2\"] }\n"
     )
     try:
-        response = client1.chat.completions.create(
-            model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": str(prompt)}
-            ],
-            max_tokens=2000,
-            temperature=0.1
+        ai_reply = call_with_fallback(
+            "Qwen/Qwen3-Coder-480B-A35B-Instruct",
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": str(prompt)}],
+            2000, 0.1
         )
-        ai_reply = str(response.choices[0].message.content).strip()
         context.append('User said: ' + str(prompt))
         context.append('Ai responded: ' + ai_reply)
         return ai_reply
-    except:
-        try:
-            response = client2.chat.completions.create(
-                model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": str(prompt)}
-                ],
-                max_tokens=2000,
-                temperature=0.1
-            )
-            ai_reply = str(response.choices[0].message.content).strip()
-            context.append('User said: ' + str(prompt))
-            context.append('Ai responded: ' + ai_reply)
-            return ai_reply
-        except:
-            try:
-                response = client3.chat.completions.create(
-                    model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": str(prompt)}
-                    ],
-                    max_tokens=2000,
-                    temperature=0.1
-                )
-                ai_reply = str(response.choices[0].message.content).strip()
-                context.append('User said: ' + str(prompt))
-                context.append('Ai responded: ' + ai_reply)
-                return ai_reply
-            except Exception as e:
-                return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
+    except Exception as e:
+        return f"Native Hub Error: {e}\nMake sure your HF token is valid and active."
 
 def image_pipeline(image_path, user_question="Describe this image deeply."):
     global context, summarized_context
@@ -1472,51 +1095,16 @@ def terminal_command_pipeline(prompt):
         "Strictly evaluate inputs and output the raw plain-text command only. No introductions. No conclusions."
     )
     try:
-        response = client1.chat.completions.create(
-            model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": str(prompt)}
-            ],
-            max_tokens=2000,
-            temperature=0.1
-        )
-        ai_reply = str(response.choices[0].message.content).strip().replace("`", "")
+        ai_reply = call_with_fallback(
+            "Qwen/Qwen3-Coder-480B-A35B-Instruct",
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": str(prompt)}],
+            2000, 0.1
+        ).replace("`", "")
         context.append('User said: ' + str(prompt))
         context.append('Ai asked to run command: ' + ai_reply)
         return ai_reply
-    except:
-        try:
-            response = client2.chat.completions.create(
-                model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": str(prompt)}
-                ],
-                max_tokens=2000,
-                temperature=0.1
-            )
-            ai_reply = str(response.choices[0].message.content).strip().replace("`", "")
-            context.append('User said: ' + str(prompt))
-            context.append('Ai asked to run command: ' + ai_reply)
-            return ai_reply
-        except:
-            try:
-                response = client3.chat.completions.create(
-                    model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": str(prompt)}
-                    ],
-                    max_tokens=2000,
-                    temperature=0.1
-                )
-                ai_reply = str(response.choices[0].message.content).strip().replace("`", "")
-                context.append('User said: ' + str(prompt))
-                context.append('Ai asked to run command: ' + ai_reply)
-                return ai_reply
-            except Exception as e:
-                return f"Native Hub Error: {e}\nMake sure your HF token is valid and active." 
+    except Exception as e:
+        return f"Native Hub Error: {e}\nMake sure your HF token is valid and active." 
 
 
 filebar_files = []
