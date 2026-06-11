@@ -3,17 +3,17 @@ import os
 import platform
 import subprocess
 from time import sleep
-import threading as thread
+import threading as thread #import block for basic features
 import textwrap
 import msvcrt
 
-import AppOpener as app
+import AppOpener as app# import block for opening apps and web
 import webbrowser as web
 
 import json
 from pptx import Presentation
 from pptx.util import Pt
-from docx import Document
+from docx import Document # import block for for file gen 
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import csv
@@ -24,11 +24,11 @@ from io import BytesIO
 from PIL import Image
 import base64
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog # import block for multimodal input
 from pathlib import Path
 
 import datetime
-from random import choice
+from random import choice # import block for the tui
 from colorama import Fore as col
 
 
@@ -100,13 +100,13 @@ def read_input(prompt, seed=None):
 
 
 
-APP_NAME = "Anything AI"
+APP_NAME = "Anything AI" # was gonna originally name this 'artificial inteligence AI' XD
 hf_token_1 = str(os.environ.get("HF_ACCESS_TOKEN"))
 hf_token_2 = str(os.environ.get("HF_ACCESS_TOKEN_2"))
 hf_token_3 = str(os.environ.get("HF_ACCESS_TOKEN_3"))
 
 client1 = InferenceClient(token=hf_token_1)
-client2 = InferenceClient(token=hf_token_2)
+client2 = InferenceClient(token=hf_token_2)# huggign face should give atleast something more than 0.10 dolla per month
 client3 = InferenceClient(token=hf_token_3)
 
 size = os.get_terminal_size()
@@ -114,10 +114,11 @@ size = os.get_terminal_size()
 width = size.columns
 
 header = [' █████╗ ███╗   ██╗██╗   ██╗████████╗██╗  ██╗██╗███╗   ██╗ ██████╗      █████╗ ██╗', '██╔══██╗████╗  ██║╚██╗ ██╔╝╚══██╔══╝██║  ██║██║████╗  ██║██╔════╝     ██╔══██╗██║','███████║██╔██╗ ██║ ╚████╔╝    ██║   ███████║██║██╔██╗ ██║██║  ███╗    ███████║██║', '██╔══██║██║╚██╗██║  ╚██╔╝     ██║   ██╔══██║██║██║╚██╗██║██║   ██║    ██╔══██║██║','██║  ██║██║ ╚████║   ██║      ██║   ██║  ██║██║██║ ╚████║╚██████╔╝    ██║  ██║██║', '╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝      ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝ ╚═════╝     ╚═╝  ╚═╝╚═╝']
-
+# list final boss
 context = []
-username = str(os.getlogin())
-def determine_time_of_day(time):
+username = str(os.getlogin())# i dont collect data,t his is how i know ur name
+
+def determine_time_of_day(time): # useful
     hour = time.hour
     if 5 <= hour < 12:
         return "morning"
@@ -130,7 +131,7 @@ def determine_time_of_day(time):
     
 daytime = determine_time_of_day(datetime.datetime.now())
 
-welcome_messages = [
+welcome_messages = [# u just KNOW i was looking at the claude homepage for reference
     f"Good {daytime}, {username}. What are we building today?",
     f"Back at it, {username}? Good {daytime}, let's get into it.",
     f"Hey {username}, good {daytime}. What do you need?",
@@ -163,7 +164,7 @@ welcome_messages = [
 summarized_context = ""
 message = choice(welcome_messages)
 
-
+# parsation of files
 def parse_text_file(path):
     with open(path, "r", encoding="utf-8", errors="ignore") as f:
         return f.read()
@@ -196,6 +197,7 @@ def parse_code_file(path):
     with open(path, "r", encoding="utf-8", errors="ignore") as f:
         return f.read()
 
+# cool effect u see on ai chatting interfaces
 def type_print(text, delay):
     for line in text.splitlines():
         wrapped_lines = textwrap.wrap(line, width=width) if line.strip() else ['']
@@ -206,7 +208,7 @@ def type_print(text, delay):
             print()
     print()
 
-def ui_header():
+def ui_header(): # im gonna use this fuc only one time!
     global daytime, header, welcome_messages, username, width, message
     heading_spaces = (width - len(header[1]))/2
 
@@ -223,10 +225,10 @@ def ui_header():
         
         
 
-def open_file(path):
+def open_file(path): 
     current_os = platform.system()
 
-    if current_os == "Windows":# doing some jugaad to support all oses, but this thing will proabably only ship for windows
+    if current_os == "Windows":# doing some jugaad to support all oses, but this thing will ONLY ship for windows, im too lazy to remove it now
         os.startfile(path)
     elif current_os == "Darwin":  
         subprocess.run(["open", path])
@@ -235,7 +237,7 @@ def open_file(path):
     else:
         print("Unsupported operating system")
 
-def run_terminal_command(command):
+def run_terminal_command(command): #i DEFINITELY TRUST AI TO RUN COMMANDS FOR ME
     global width
     type_print(col.YELLOW+'AI has requested to run the given command: ', 0.01)
     print(col.LIGHTBLUE_EX+'\n')
@@ -257,7 +259,7 @@ def run_terminal_command(command):
     else:
         context.append('User rejected AI\'s request to run command')
 
-def get_image_base64_uri(image_path):
+def get_image_base64_uri(image_path): #i think base64 therefore i am base64 (stardance reference)
     with Image.open(image_path) as img:
         buffered = BytesIO()
         img_format = img.format if img.format else "JPEG"
@@ -265,7 +267,7 @@ def get_image_base64_uri(image_path):
         img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
         return f"data:image/{img_format.lower()};base64,{img_base64}"
 
-def pick_file():
+def pick_file(): # love to navigate my messy folder structure testing this!
     root = tk.Tk()
     root.withdraw()
     root.attributes('-topmost', True)
@@ -288,7 +290,7 @@ def pick_file():
 
     return path
 
-def fetch_wikimedia_image(query):
+def fetch_wikimedia_image(query):# thats why wikipedia is the GOAT.... THE GOAT
     try:
         search_url = "https://en.wikipedia.org/w/api.php"
         search_params = {
@@ -317,7 +319,7 @@ def fetch_wikimedia_image(query):
     return None
 
 
-def get_output_dir():
+def get_output_dir(): # i didnt need to make this function
     username = os.getlogin()
     output_dir = f"C:\\Users\\{username}\\{APP_NAME}\\output\\"
     os.makedirs(output_dir, exist_ok=True)
@@ -327,7 +329,7 @@ def get_output_dir():
 
 
 
-def maybe_summarize_context():
+def maybe_summarize_context(): #MAYBE is a key word here
     global context, summarized_context
     if len(context) <= 10:
         return
@@ -351,6 +353,7 @@ def maybe_summarize_context():
 def get_context_string():
     return f"Summarized history:\n{summarized_context}\n\nRecent exchanges:\n{chr(10).join(context)}"
 
+# big AI imitation here
 def load_memory():
     global summarized_context
     memory_path = f"C:\\Users\\{os.getlogin()}\\Anything AI\\memory\\memory.txt"
@@ -424,12 +427,13 @@ def print_chat_history():
             print(col.WHITE + entry)
     print('\n')
 
+# the most over the top, ANSI char spam code
 def startup_menu():
     recent_chats = get_recent_chats()
     if not recent_chats:
         return None
 
-    options = recent_chats + ["↾▰ Open Chats Folder..."]
+    options = recent_chats + ["↾▰ Open Chats Folder..."] # most terminals cant even display the paraleelogram properly, it just looks like a smol square T_T
     selected = 0
 
     def draw_menu():
@@ -472,7 +476,7 @@ def startup_menu():
             print('\n\n\n')
             return ch
         
-def write_file_from_json(json_string):
+def write_file_from_json(json_string): #big brain stuff
     try:
         data = json.loads(json_string)
     except json.JSONDecodeError as e:
@@ -656,7 +660,7 @@ def write_file_from_json(json_string):
         print(col.RED+f"File write error: {e}")
 
 
-def call_with_fallback(model, messages, max_tokens, temperature):
+def call_with_fallback(model, messages, max_tokens, temperature): # did this to cut 300 lines of my code, thats how bad it was
     for active_client in [client1, client2, client3]:
         try:
             response = active_client.chat.completions.create(
@@ -719,7 +723,7 @@ def sort_prompt(prompt):
         return "conversation"
 
 
-def save_code_file(code):
+def save_code_file(code): # save it? save it. save it, SAVE IT!
     lines = code.split("\n")
     suggested = "output.py"
 
@@ -756,6 +760,7 @@ def save_code_file(code):
         type_print(f"Saved to {output_path}", 0.01)
         open_file(output_path)
 
+# not really fits the definition of pipeline, it just sound hacky and cool 
 
 def code_create_pipeline(prompt):
     global context, summarized_context
@@ -1116,7 +1121,7 @@ def draw_file_bar():
 
 
 
-if __name__ == "__main__":
+if __name__ == "__main__": # first time ive evr used if __name__ == __main__ btw
     attachfile = []
     print('\n\n\n')
     ui_header()
@@ -1222,3 +1227,5 @@ if __name__ == "__main__":
 
         save_memory()
         save_chat_history()
+
+# namaskar sahab, aapne itna niche kaise scroll kiya
